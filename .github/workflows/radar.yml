@@ -1,0 +1,47 @@
+name: Rug Radar alerts
+
+on:
+  schedule:
+    - cron: "*/10 * * * *"
+  workflow_dispatch:
+    inputs:
+      test:
+        description: "Send a test message only"
+        type: boolean
+        default: false
+
+concurrency:
+  group: rug-radar
+  cancel-in-progress: false
+
+jobs:
+  scan:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    env:
+      TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+      TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: pip install -r requirements.txt
+      - name: Restore seen tokens
+        uses: actions/cache/restore@v4
+        with:
+          path: seen_mints.txt
+          key: seen-${{ github.run_id }}
+          restore-keys: seen-
+      - name: Test message
+        if: ${{ inputs.test }}
+        run: python telegram_alerts.py --test
+      - name: Scan new tokens
+        if: ${{ !inputs.test }}
+        run: python telegram_alerts.py --once
+      - name: Save seen tokens
+        if: ${{ !inputs.test }}
+        uses: actions/cache/save@v4
+        with:
+          path: seen_mints.txt
+          key: seen-${{ github.run_id }}
