@@ -1,5 +1,5 @@
 """
-Solana Rug Radar - Telegram Alerts v0.4
+Solana Rug Radar - Telegram Alerts v0.5
 Scans new Solana tokens and sends a Telegram alert for every HIGH RISK one.
 Read-only. Keep in the same folder as rug_radar.py.
 
@@ -14,6 +14,7 @@ Setup (one time):
 Run:
   python telegram_alerts.py            # scan forever, alert on high risk
   python telegram_alerts.py --test     # send one test message
+  python telegram_alerts.py --once     # one batch then exit (used by GitHub Actions)
 """
 import os
 import sys
@@ -31,7 +32,21 @@ MAX_PER_BATCH = 10
 PAUSE = 2
 ALERT_AT = 60         # alert when score is at or above this
 
+SEEN_FILE = os.getenv("SEEN_FILE", "seen_mints.txt")
 seen = set()
+
+
+def load_seen():
+    try:
+        with open(SEEN_FILE) as f:
+            seen.update(l.strip() for l in f if l.strip())
+    except FileNotFoundError:
+        pass
+
+
+def save_seen():
+    with open(SEEN_FILE, "w") as f:
+        f.write("\n".join(list(seen)[-5000:]))
 
 
 def send(text):
@@ -101,6 +116,11 @@ def main():
         return print("Test sent!" if ok else "Test failed.")
     if not TOKEN or not CHAT_ID:
         print("! Set TELEGRAM_BOT_TOKEN and TELEGRAM_CHAT_ID first (see top of file).")
+        return
+    if "--once" in sys.argv:
+        load_seen()
+        scan_batch()
+        save_seen()
         return
     send("📡 Solana Rug Radar started watching new launches.")
     print("Watching new Solana tokens. Ctrl+C to stop.\n")
